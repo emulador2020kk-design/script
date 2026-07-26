@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Editor de Dados do Site</title>
+  <link rel="stylesheet" href="/styles/styles.css">
+  <style>
+    .oa-editor-shell {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 32px 24px 60px;
+    }
+
+    .oa-editor-card {
+      background: #fff;
+      border: 1px solid var(--oa-line);
+      border-radius: 10px;
+      padding: 24px;
+      box-shadow: 0 6px 18px rgba(18, 50, 74, .08);
+    }
+
+    .oa-editor-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 18px;
+    }
+
+    .oa-editor-grid .oa-field-full {
+      grid-column: 1 / -1;
+    }
+
+    .oa-editor-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      margin-top: 20px;
+    }
+
+    .oa-editor-note,
+    .oa-editor-status,
+    .oa-editor-files {
+      margin-top: 18px;
+    }
+
+    .oa-editor-status {
+      min-height: 24px;
+      font-weight: 600;
+    }
+
+    .oa-editor-status[data-type="success"] {
+      color: #0b7a32;
+    }
+
+    .oa-editor-status[data-type="error"] {
+      color: #b42318;
+    }
+
+    .oa-editor-files {
+      background: var(--oa-soft);
+      border-radius: 8px;
+      padding: 16px 18px;
+    }
+
+    .oa-editor-files ul {
+      margin: 10px 0 0 20px;
+    }
+
+    .oa-btn-secondary {
+      background: #fff;
+      border: 1px solid var(--oa-line);
+      color: var(--oa-deep);
+    }
+
+    .oa-btn-secondary:hover {
+      background: var(--oa-soft);
+    }
+
+    @media (max-width: 768px) {
+      .oa-editor-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="oa-disclaimer">
+    <span class="oa-disclaimer-icon" aria-hidden="true">!</span>
+    <p>Use esta pagina para editar em lote nome do site, empresa, CNPJ, e-mail e endereco em todos os arquivos HTML do projeto.</p>
+  </div>
+
+  <input type="checkbox" id="oa-menu-toggle" class="oa-menu-check" hidden>
+
+  <header class="oa-header">
+    <div class="oa-wrap oa-header-inner">
+      <a href="/" class="oa-logo">Orientacao Auto</a>
+      <label for="oa-menu-toggle" class="oa-burger" aria-label="Abrir menu">
+        <span></span><span></span><span></span>
+      </label>
+      <nav class="oa-nav" id="oa-main-nav">
+        <a href="/">Inicio</a>
+        <a href="/blog/index.html">Blog</a>
+        <a href="/politica-de-privacidade.html">Privacidade</a>
+        <a href="/termos-de-uso.html">Termos</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="oa-section">
+      <div class="oa-editor-shell">
+        <div class="oa-editor-card">
+          <p class="oa-breadcrumb"><a href="/">Inicio</a><span>/</span>Editor</p>
+          <h1>Editar dados globais do site</h1>
+          <p class="oa-section-intro">Ao salvar, os valores abaixo serao aplicados em todos os arquivos `.html` desta pasta e da pasta `blog`, incluindo textos, `mailto` e links do `FormSubmit`.</p>
+
+          <form id="editor-form" class="oa-form">
+            <div class="oa-editor-grid">
+              <div>
+                <label for="site_name">Nome do site</label>
+                <input type="text" id="site_name" name="site_name" required>
+              </div>
+
+              <div>
+                <label for="company_name">Nome da empresa</label>
+                <input type="text" id="company_name" name="company_name" required>
+              </div>
+
+              <div>
+                <label for="cnpj">CNPJ</label>
+                <input type="text" id="cnpj" name="cnpj" required>
+              </div>
+
+              <div>
+                <label for="email">E-mail</label>
+                <input type="email" id="email" name="email" required>
+              </div>
+
+              <div class="oa-field-full">
+                <label for="address">Endereco completo</label>
+                <textarea id="address" name="address" rows="3" required></textarea>
+              </div>
+            </div>
+
+            <div class="oa-editor-actions">
+              <button type="submit" class="oa-btn oa-btn-primary" id="save-button">Salvar em todos os arquivos</button>
+              <button type="button" class="oa-btn oa-btn-secondary" id="reload-button">Recarregar dados atuais</button>
+            </div>
+
+            <p class="oa-editor-status" id="status"></p>
+          </form>
+
+          <div class="oa-editor-note">
+            <p>Campos editados por esta pagina:</p>
+            <ul>
+              <li>Nome do site</li>
+              <li>Nome da empresa</li>
+              <li>CNPJ</li>
+              <li>E-mail</li>
+              <li>Endereco completo</li>
+            </ul>
+          </div>
+
+          <div class="oa-editor-files">
+            <strong>Arquivos que serao atualizados</strong>
+            <ul id="file-list"></ul>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const form = document.getElementById('editor-form');
+    const statusEl = document.getElementById('status');
+    const fileListEl = document.getElementById('file-list');
+    const saveButton = document.getElementById('save-button');
+    const reloadButton = document.getElementById('reload-button');
+    const apiUrl = new URL('./editar-api.php', window.location.href).toString();
+
+    async function parseJsonResponse(response) {
+      const raw = await response.text();
+
+      try {
+        return JSON.parse(raw);
+      } catch (error) {
+        const preview = raw.trim().slice(0, 120);
+        throw new Error('O servidor retornou uma resposta invalida. Verifique se abriu por localhost e nao por arquivo direto. Resposta: ' + preview);
+      }
+    }
+
+    async function loadData() {
+      setStatus('Carregando dados atuais...', '');
+
+      try {
+        const response = await fetch(apiUrl + '?action=load', { cache: 'no-store' });
+        const payload = await parseJsonResponse(response);
+
+        if (!response.ok || !payload.success) {
+          throw new Error(payload.message || 'Nao foi possivel carregar os dados.');
+        }
+
+        Object.entries(payload.data).forEach(([key, value]) => {
+          const field = document.getElementById(key);
+          if (field) {
+            field.value = value || '';
+          }
+        });
+
+        fileListEl.innerHTML = '';
+        (payload.files || []).forEach((file) => {
+          const item = document.createElement('li');
+          item.textContent = file;
+          fileListEl.appendChild(item);
+        });
+
+        setStatus('Dados carregados.', 'success');
+      } catch (error) {
+        setStatus(error.message || 'Falha ao carregar dados.', 'error');
+      }
+    }
+
+    async function saveData(event) {
+      event.preventDefault();
+
+      const formData = new FormData(form);
+      const payload = Object.fromEntries(formData.entries());
+
+      saveButton.disabled = true;
+      reloadButton.disabled = true;
+      setStatus('Salvando alteracoes em todos os arquivos...', '');
+
+      try {
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const result = await parseJsonResponse(response);
+        if (!response.ok || !result.success) {
+          throw new Error(result.message || 'Nao foi possivel salvar.');
+        }
+
+        const updatedCount = typeof result.updated_count === 'number' ? result.updated_count : 0;
+        setStatus('Salvo com sucesso. Arquivos atualizados: ' + updatedCount + '.', 'success');
+        await loadData();
+      } catch (error) {
+        setStatus(error.message || 'Falha ao salvar.', 'error');
+      } finally {
+        saveButton.disabled = false;
+        reloadButton.disabled = false;
+      }
+    }
+
+    function setStatus(message, type) {
+      statusEl.textContent = message;
+      statusEl.dataset.type = type || '';
+    }
+
+    form.addEventListener('submit', saveData);
+    reloadButton.addEventListener('click', loadData);
+    loadData();
+  </script>
+</body>
+</html>
